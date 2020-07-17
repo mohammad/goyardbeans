@@ -14,6 +14,9 @@ dist/
 downloads/
 eggs/
 .eggs/
+bin/
+include/
+env.sh
 lib/
 lib64/
 parts/
