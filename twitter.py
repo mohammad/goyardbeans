@@ -16,21 +16,12 @@ auth.set_access_token(twitter_access_token, twitter_access_token_secret)
 
 # TODO - push to Heroku and set up Cronjob 
 
+# Nothing better than a text file that serves as your DB
 api = tweepy.API(auth)
-since = 0
+f = open('since.txt')
+since = int(f.read())
+f.close()
 
-def get_mentions(since):
-    try:
-        tweet = api.mentions_timeline(since_id = since + 1)[0]
-        tweet_id = tweet.id
-        screen_name = tweet.user.screen_name
-        media_url = tweet.entities['media'][0]['media_url']
-        crop_and_upload_media(url = media_url, author=screen_name, reply_id = tweet_id)
-        return tweet_id
-    except:
-        print("No recent photos to update")
-
-    
 def crop_and_upload_media(url, author, reply_id):
     cropped_photo = crop_photo(url)
     media = api.media_upload(filename="goyard.jpeg", file = cropped_photo)
@@ -38,8 +29,34 @@ def crop_and_upload_media(url, author, reply_id):
     api.update_status(status = status, in_reply_to_status_id=reply_id, media_ids=[media.media_id])
 
 
-new_since = get_mentions(since)
+def process_mention(tweet):
+    tweet_id = tweet.id
+    try:    
+        screen_name = tweet.user.screen_name
+        media_url = tweet.entities['media'][0]['media_url']
+        crop_and_upload_media(url = media_url, author=screen_name, reply_id = tweet_id)
+    except:
+        print("Unable to process tweet")
+    
+    return tweet_id
 
+def get_mentions(since):
+    tweets = api.mentions_timeline(since_id = since + 1)
+    new_since = since
+    if(len(tweets) == 0):
+        print('No tweets to process')
+    else:
+        print(str(len(tweets)) + " tweets to process")
+        for tweet in tweets:
+            new_since = process_mention(tweet)
+        
+    return new_since
+
+
+since = get_mentions(since)
+f = open("since.txt", "w")
+f.write(str(since))
+f.close()
 
     
 
