@@ -2,9 +2,10 @@ import tweepy
 import os
 import re
 import json
+import psycopg2
 from photoshop import crop_photo
 
-
+# Twitter Client Setup
 twitter_consumer_key = os.environ['TWITTER_CONSUMER_KEY']
 twitter_consumer_key_secret = os.environ['TWITTER_CONSUMER_KEY_SECRET']
 
@@ -14,13 +15,21 @@ twitter_access_token_secret = os.environ['TWITTER_ACCESS_TOKEN_SECRET']
 auth = tweepy.OAuthHandler(twitter_consumer_key, twitter_consumer_key_secret)
 auth.set_access_token(twitter_access_token, twitter_access_token_secret)
 
-# TODO - push to Heroku and set up Cronjob 
-
-# Nothing better than a text file that serves as your DB
 api = tweepy.API(auth)
-f = open('since.txt')
-since = int(f.read())
-f.close()
+
+# DB Setup
+psql_host = os.environ['PSQL_HOST']
+psql_db = os.environ['PSQL_DB']
+psql_user = os.environ['PSQL_USER']
+psql_password = os.environ['PSQL_PASSWORD']
+
+
+conn = psycopg2.connect(host=psql_host,database=psql_db, user=psql_user, password=psql_password)
+
+db = conn.cursor()
+since_query = "select * from tweet_tracker"
+db.execute(since_query)
+since = int(db.fetchone()[0])
 
 def crop_and_upload_media(url, author, reply_id):
     cropped_photo = crop_photo(url)
@@ -41,7 +50,8 @@ def process_mention(tweet):
     return tweet_id
 
 def get_mentions(since):
-    tweets = api.mentions_timeline(since_id = since + 1)
+    # Hacky way of reversing tweets
+    tweets = api.mentions_timeline(since_id = since + 1)[::-1]
     new_since = since
     if(len(tweets) == 0):
         print('No tweets to process')
@@ -54,9 +64,12 @@ def get_mentions(since):
 
 
 since = get_mentions(since)
-f = open("since.txt", "w")
-f.write(str(since))
-f.close()
+update_query = "UPDATE tweet_tracker SET last_processed_tweet = (%s);"
+db.execute(update_query, [since])
+conn.commit()
+
+db.close()
+conn.close()
 
     
 
